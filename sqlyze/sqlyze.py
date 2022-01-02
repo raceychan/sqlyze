@@ -13,35 +13,31 @@ import pandas as pd
 from pathlib import Path
 from functools import wraps
 from inspect import Parameter
-from pandas.core.frame import DataFrame
 from sqlalchemy.engine.row import LegacyRow
 from sqlalchemy.sql.elements import TextClause
 from pydantic import parse_obj_as, ValidationError, BaseModel, create_model
+from pandas.core.series import Series
+from pandas.core.frame import DataFrame
 from typing import Callable, TypeVar, Type, List, Union, Any  # , Dict
-
 from database import db
 
 T = TypeVar("T")
-
-# name: sqlyze
 
 
 class Pawn:
     def __init__(self, sql):
         pass
 
-    def get_typed_series(self, types_dict):
-        from pandas.core.series import Series
-
-        dtypes = {column: Series(dtype=dtype) for column, dtype in types_dict.items()}
+    def get_typed_series(self: "Pawn", typed_dict: dict):
+        dtypes = {column: Series(dtype=dtype) for column, dtype in typed_dict.items()}
         return dtypes
 
-    def get_template_from_series(self, types_dict):
+    def get_template_from_series(self, types_dict: dict):
         series = self.get_typed_series(types_dict)
-        template = DataFrame(series)
-        return template
+        dtemplate = DataFrame(series)
+        return dtemplate
 
-    def get_pydantic_types(self, basemodel):
+    def get_pydantic_types(self, basemodel: BaseModel):
         annotations = basemodel.__annotations__.items()
         dtypes = {column: dtype for column, dtype in annotations}
         return dtypes
@@ -87,9 +83,8 @@ class Sql(TextClause):
         params_keys = set(self._bindparams.keys())  # type: ignore
         signature_keys = set(self.func_params.keys())
         if not params_keys.issubset(signature_keys):
-            raise AttributeError(
-                f"Missing {params_keys - signature_keys} for sql params in func params"
-            )
+            missed_params = params_keys - signature_keys
+            raise ValueError(f"Missing {missed_params} for sql params in func params")
 
         if "return_schema" in self.func_params:
             self.default_return_schema = self.func_params["return_schema"].default
@@ -104,7 +99,16 @@ class Sql(TextClause):
             self.func_exe.__signature__ = self.func_sig.replace(parameters=func_params)
             self.default_return_schema = None
 
-    #    def append_params(func, param):
+    def append_params(self, func, param):
+        parameter = Parameter(
+            name="return_schema",
+            annotation=Union[BaseModel, type],
+            kind=Parameter.KEYWORD_ONLY,
+        )
+        func_params = list(self.func_params.values())
+        func_params.append(parameter)
+        self.func_exe.__signature__ = self.func_sig.replace(parameters=func_params)
+        self.default_return_schema = None
 
     def validate_parameters(self, func: Callable, *args, **kwargs) -> None:
         params = inspect.signature(func).parameters
@@ -117,7 +121,7 @@ class Sql(TextClause):
                 parse_obj_as(param.annotation, arg)
             except ValidationError:
                 raise TypeError(
-                    f"Argument {param.name} must be {values[index].annotation}"
+                    f"Argument {param.name} must be of type {param.annotation}"
                 )
 
         for k, v in kwargs.items():
@@ -142,7 +146,8 @@ class Sql(TextClause):
         except RuntimeError as re:
             if isinstance(func_result, schema):  # type: ignore
                 return func_result
-        return func_result
+        finally:
+            return func_result
 
     def validate_return(
         self, func_result: Union[List[T], T], func_return: Type[T], return_handler=None
@@ -182,7 +187,9 @@ class Sql(TextClause):
                 raise KeyError("return_schema not defined")
 
         self.validate_parameters(func, *func_args, **func_kwargs)
-        self.sql_obj._bindparams = self.sql_obj.bindparams(**func_kwargs)._bindparams  # type: ignore
+        self.sql_obj._bindparams = self.sql_obj.bindparams(
+            **func_kwargs
+        )._bindparams  # type: ignore
         func_result = func(*func_args, **func_kwargs)
 
         if return_schema:
@@ -212,20 +219,21 @@ class Housing(BaseModel):
     latitude: float
     housing_median_age: int
 
-    #   class HousingData:
-    #       housing_sql: Sql[Housing] = housing_sql #type: ignore
+    class HousingData:
+        housing_sql: Sql[Housing] = housing_sql  # type: ignore
+
     # NOTE: type hint allows: def query(df: DataFrame([], dtypes = []))
     # above should delear the default schema for housing sql
 
     # NOTE:
-    # dtypes = {
-    #    'a': pd.Series(dtype='int'),
-    #    'b': pd.Series(dtype='str'),
-    #    'c': pd.Series(dtype='float'),
-    #   }
-    # def test(df:DataFrame(dtypes)): ...
-    # list(inspect.signature(test).parameters.values())[0].annotation
+    dtypes = {
+        "a": pd.Series(dtype="int"),
+        "b": pd.Series(dtype="str"),
+        "c": pd.Series(dtype="float"),
+    }
 
+    def test(self, df: DataFrame):
+        list(inspect.signature(test).parameters.values())[0].annotation
 
     def __init__(self):
         pass
@@ -237,9 +245,9 @@ class Housing(BaseModel):
         return result
 
 
-HousingData().housing_data(
-    total_rooms=1000, median_income=15, return_schema=Housing
-)  # type: ignore
+# HousingData().housing_data(
+# total_rooms=1000, median_income=15, return_schema=Housing
+# )  # type: ignore
 """
 db=DataBase.build_db(env=prod)
 
@@ -251,7 +259,7 @@ class Housing:
         'latitude': float,
         'housing_median_age': int
     })
-    
+
     houses.schema = Housing
 
     @houses.fetch
@@ -260,3 +268,8 @@ class Housing:
             result = conn.execute(houses).fetchall()
         return result
 """
+
+
+if __name__ == "__main__":
+    print("1")
+

@@ -1,7 +1,7 @@
-import pika
+# import pika
 import ssl
 
-from pika.connection import ConnectionParameters
+# from pika.connection import ConnectionParameters
 from typing import Any, Dict, List, Optional, Union, Set
 from pydantic import BaseSettings, PostgresDsn, EmailStr, HttpUrl, AnyUrl, validator
 from pandas.core.frame import DataFrame
@@ -35,7 +35,6 @@ class Settings(BaseSettings):
     MYSQL_USER: str
     MYSQL_PASSWORD: str
     MYSQL_SCHEMA: Optional[str] = None
-
 
     POSTGRESQL_DB: str
     POSTGRESQL_DRIVER: str
@@ -100,29 +99,30 @@ class Settings(BaseSettings):
     RABBITMQ_USER: str
     RABBITMQ_PASSWORD: str
 
-    RMQ_CON_PARAM: Optional[ConnectionParameters] = None
 
-    @validator("RMQ_CON_PARAM", pre=True)
-    def assemble_mq_con(
-        cls, v: Optional[str], values: Dict[str, Any], config, field
-    ) -> ConnectionParameters:
-        if isinstance(v, ConnectionParameters):
-            return v
-        rabbitmq_user = values.get("RABBITMQ_USER")
-        rabbitmq_password = values.get("RABBITMQ_PASSWORD")
-        rabbitmq_host = values.get("RABBITMQ_HOST")
-        rabbitmq_port = values.get("RABBITMQ_PORT")
+#    RMQ_CON_PARAM: Optional[ConnectionParameters] = None
 
-        credentials = pika.PlainCredentials(rabbitmq_user, rabbitmq_password)
-        context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
-        ssl_options = pika.SSLOptions(context)
-        connection_params = pika.ConnectionParameters(
-            host=rabbitmq_host,
-            port=rabbitmq_port,
-            credentials=credentials,
-            ssl_options=ssl_options,
-        )
-        return connection_params
+# @validator("RMQ_CON_PARAM", pre=True)
+# def assemble_mq_con(
+# cls, v: Optional[str], values: Dict[str, Any], config, field
+# ) -> ConnectionParameters:
+# if isinstance(v, ConnectionParameters):
+# return v
+# rabbitmq_user = values.get("RABBITMQ_USER")
+# rabbitmq_password = values.get("RABBITMQ_PASSWORD")
+# rabbitmq_host = values.get("RABBITMQ_HOST")
+# rabbitmq_port = values.get("RABBITMQ_PORT")
+
+# credentials = pika.PlainCredentials(rabbitmq_user, rabbitmq_password)
+# context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
+# ssl_options = pika.SSLOptions(context)
+# connection_params = pika.ConnectionParameters(
+# host=rabbitmq_host,
+# port=rabbitmq_port,
+# credentials=credentials,
+# ssl_options=ssl_options,
+# )
+# return connection_params
 
 
 settings = Settings(_env_file=".env")
